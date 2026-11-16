@@ -1,0 +1,31 @@
+services:
+  xray:
+    image: ghcr.io/xtls/xray-core:26.11.9@sha256:9812e382e229e9ed63fd179bf1a4e3fe244c12ff3ae4fd8128745d79c87575ab
+    command: ["run", "-config", "/run/xray.json"]
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /usr/local/etc/xray:ro
+      - /var/log/xray:ro
+    ports:
+      - target: 8443
+        published: "${ANYMODEL_PORT:-9443}"
+        host_ip: "${ANYMODEL_BIND:-127.0.0.1}"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: "${ANYMODEL_CONFIG:?set the absolute path to the generated configuration}"
+        target: /run/xray.json
+        read_only: true
+        bind:
+          create_host_path: false
+    labels:
+      org.anymodel.config-sha256: "${ANYMODEL_REVISION:-validation}"
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "2m"
+        max-file: "3"

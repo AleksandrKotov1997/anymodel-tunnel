@@ -1,0 +1,20 @@
+{
+  "name": "anymodel-bench",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "26.13.1"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "origin": "node cli.ts origin",
+    "run": "node cli.ts run",
+    "client": "node cli.ts client",
+    "metrics": "node cli.ts metrics",
+    "results": "node cli.ts results"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}
