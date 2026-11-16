@@ -131,11 +131,17 @@ export async function metricsMain(args: string[]) {
     throw Error("Invalid deployment state");
   }
   const local = identity.mode === "local";
+  const port = identity.port ?? (local ? 9443 : 443);
+  if (
+    typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535
+  ) {
+    throw Error("Invalid deployment port");
+  }
   const env = {
     ...process.env,
     ANYMODEL_CONFIG: join(state, "xray.json"),
     ANYMODEL_BIND: local ? "127.0.0.1" : "0.0.0.0",
-    ANYMODEL_PORT: local ? "9443" : "443",
+    ANYMODEL_PORT: String(port),
   };
   const compose = [
     "compose",

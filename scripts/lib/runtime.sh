@@ -40,11 +40,16 @@ compose() {
 }
 
 configure_binding() {
+  local default_port port
   case "$1" in
-    local) export ANYMODEL_BIND=127.0.0.1 ANYMODEL_PORT=9443 ;;
-    server) export ANYMODEL_BIND=0.0.0.0 ANYMODEL_PORT=443 ;;
+    local) export ANYMODEL_BIND=127.0.0.1; default_port=9443 ;;
+    server) export ANYMODEL_BIND=0.0.0.0; default_port=443 ;;
     *) fail 'Invalid deployment mode in state.' ;;
   esac
+  port=${2:-$default_port}
+  [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] && (( port <= 65535 )) ||
+    fail 'Use a TCP port between 1 and 65535.'
+  export ANYMODEL_PORT="$port"
 }
 
 check_docker() {

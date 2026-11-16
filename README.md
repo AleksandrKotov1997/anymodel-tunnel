@@ -4,13 +4,19 @@ Xray-core 26.11.9 принимает VLESS с XTLS Vision и REALITY повер�
 
 ## Запуск на Ubuntu 24.04 LTS
 
-Нужен отдельный VPS с публичным IPv4 на amd64 или arm64. Разрешите входящий TCP/443 в правилах облака. Ограничьте SSH административным адресом. Порт стенда TCP/18443 открывайте только на время согласованной проверки.
+Нужен отдельный VPS на amd64 или arm64 с входящим TCP через публичный IPv4. На VPS с собственным IPv4 разрешите входящий TCP/443. На VPS за NAT используйте назначенный провайдером порт, который пробрасывается на тот же порт VPS, и передайте его как `--port` при первом запуске bootstrap. Ограничьте SSH административным адресом. Для стенда используйте отдельный порт и открывайте его только на время согласованной проверки.
 
 Из корня клона выполните команды. В `VPS_ADDRESS` укажите публичный IPv4 или DNS-имя VPS. В `REALITY_SNI` укажите проверенное назначение REALITY с валидным сертификатом, TLS 1.3 и ALPN `h2`. Имя назначения должно отличаться от адреса VPS.
 
 ```bash
 sudo -H ./scripts/bootstrap.sh "$VPS_ADDRESS" "$REALITY_SNI"
 sudo -H ./scripts/profile.sh issue reviewer
+```
+
+Если провайдер назначил внешний порт, укажите его в `VPS_PORT` и используйте эту команду bootstrap.
+
+```bash
+sudo -H ./scripts/bootstrap.sh --port "$VPS_PORT" "$VPS_ADDRESS" "$REALITY_SNI"
 ```
 
 Bootstrap готовит Docker Engine и Compose и проверяет новую конфигурацию перед применением. Повтор с теми же параметрами сохраняет ключи и клиентские UUID. При ошибке запуска скрипт возвращает предыдущую конфигурацию. Выпускайте отдельный UUID на каждого проверяющего и на нагрузочный стенд.
@@ -27,7 +33,7 @@ sudo -H ./scripts/profile.sh revoke reviewer
 Проверить обычный TLS через тот же порт с внешней машины можно с помощью OpenSSL.
 
 ```bash
-openssl s_client -connect "$VPS_ADDRESS:443" -servername "$REALITY_SNI" -tls1_3 \
+openssl s_client -connect "$VPS_ADDRESS:${VPS_PORT:-443}" -servername "$REALITY_SNI" -tls1_3 \
   -alpn h2 -verify_hostname "$REALITY_SNI" -verify_return_error </dev/null
 ```
 
@@ -46,7 +52,7 @@ npm --prefix bench run check
 На машине с контролируемым назначением запустите сервис. Укажите адрес прямого клиента и адрес, с которого TCP-соединение от Xray видит сервис. Для HTTPS передайте `--cert` и `--key`. Если используется свой удостоверяющий центр, передайте его сертификат клиенту через `--cacert`. Сервис на том же VPS допустим, если обе ветки достигают его публичного адреса. В таком стенде путь от прокси до назначения проходит внутри или рядом с VPS, что влияет на сравнение.
 
 ```bash
-node bench/cli.ts origin --bind 0.0.0.0 --port 18443 \
+node bench/cli.ts origin --bind 0.0.0.0 --port "${ORIGIN_PORT:-18443}" \
   --allow "$CLIENT_IP" --allow "$EGRESS_PEER"
 ```
 

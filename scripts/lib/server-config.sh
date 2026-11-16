@@ -6,18 +6,20 @@ prepare_server_config() {
 
   if [[ -f "$identity_file" ]]; then
     jq -e --arg address "$address" --arg sni "$sni" --arg mode "$mode" \
-      '.address == $address and .sni == $sni and .mode == $mode' "$identity_file" >/dev/null ||
-      fail 'Existing state belongs to another address, REALITY name, or binding mode.'
+      --argjson port "$ANYMODEL_PORT" '
+        .address == $address and .sni == $sni and .mode == $mode and
+        (.port // (if .mode == "local" then 9443 else 443 end)) == $port
+      ' "$identity_file" >/dev/null || fail 'Existing state uses different deployment parameters.'
   else
     image=$(compose config --images)
     docker run --rm --network none "$image" x25519 > "$lock_dir/keypair.txt"
     openssl rand -hex 8 > "$lock_dir/short-id.txt"
     jq -en --arg address "$address" --arg sni "$sni" --arg mode "$mode" \
-      --rawfile pair "$lock_dir/keypair.txt" --rawfile sid "$lock_dir/short-id.txt" '
+      --argjson port "$ANYMODEL_PORT" --rawfile pair "$lock_dir/keypair.txt" --rawfile sid "$lock_dir/short-id.txt" '
         def key($label):
           $pair | split("\n")[] | select(startswith($label)) | ltrimstr($label);
         {
-          $address, $sni, $mode,
+          $address, $sni, $mode, $port,
           privateKey: key("PrivateKey: "),
           publicKey: key("Password (PublicKey): "),
           shortId: ($sid | rtrimstr("\n"))

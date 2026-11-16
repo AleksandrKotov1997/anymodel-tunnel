@@ -20,7 +20,9 @@ fi
 
 lock_state
 [[ -f "$active_config" && -f "$identity_file" ]] || fail 'Run bootstrap first.'
-configure_binding "$(jq -er '.mode' "$identity_file")"
+mode=$(jq -er '.mode' "$identity_file")
+port=$(jq -r '.port // ""' "$identity_file")
+configure_binding "$mode" "$port"
 case "$1" in
   issue) check_docker; issue_profile "$2" ;;
   show) export_profile "$2" ;;

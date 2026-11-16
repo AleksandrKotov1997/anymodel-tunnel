@@ -7,7 +7,7 @@ source "$script_dir/lib/install-docker.sh"
 source "$script_dir/lib/server-config.sh"
 
 usage() {
-  printf 'Usage: %s [--local] ADDRESS REALITY_SNI\n' "${0##*/}"
+  printf 'Usage: %s [--local] [--port PORT] ADDRESS REALITY_SNI\n' "${0##*/}"
 }
 
 valid_host() {
@@ -29,6 +29,11 @@ if [[ ${1:-} == --local ]]; then
   mode=local
   shift
 fi
+port=
+if [[ ${1:-} == --port && $# -ge 2 && -n "$2" ]]; then
+  port=$2
+  shift 2
+fi
 if [[ $# != 2 ]] || ! valid_host "$1" || ! valid_host "$2" ||
   [[ "$2" != *.* || "$2" != *[[:alpha:]]* || "$1" == "$2" ]]; then
   usage >&2
@@ -40,8 +45,8 @@ sni=$2
 if [[ "$mode" == server && $EUID != 0 ]]; then
   fail 'Use sudo on the dedicated Ubuntu host.'
 fi
+configure_binding "$mode" "$port"
 lock_state
-configure_binding "$mode"
 if [[ "$mode" == server ]]; then
   prepare_ubuntu
 fi
