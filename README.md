@@ -56,6 +56,20 @@ node bench/cli.ts origin --bind 0.0.0.0 --port "${ORIGIN_PORT:-18443}" \
   --allow "$CLIENT_IP" --allow "$EGRESS_PEER"
 ```
 
+На тестовом VPS за NAT повторите проверку `/peer` с внешнего клиента и через Xray. Если провайдер не маршрутизирует запрос к собственному публичному IPv4 обратно на VPS, для стенда на одной машине направьте только запросы с Docker-моста на порт origin. Для этого варианта передайте публичный IPv4 в `VPS_ADDRESS`, а назначенный тестовому сервису порт в `ORIGIN_PORT`.
+
+```bash
+network_id=$(sudo docker network inspect anymodel-tunnel_default --format '{{.Id}}')
+bridge=$(printf 'br-%.12s' "$network_id")
+gateway=$(sudo docker network inspect anymodel-tunnel_default --format '{{(index .IPAM.Config 0).Gateway}}')
+origin_rule=(-i "$bridge" -d "$VPS_ADDRESS/32" -p tcp --dport "$ORIGIN_PORT"
+  -m comment --comment anymodel-controlled-origin -j DNAT --to-destination "$gateway:$ORIGIN_PORT")
+sudo iptables -t nat -C PREROUTING "${origin_rule[@]}" 2>/dev/null ||
+  sudo iptables -t nat -I PREROUTING 1 "${origin_rule[@]}"
+```
+
+В этом случае в `EGRESS_PEER` укажите IPv4 контейнера Xray, подтверждённый запросом к `/peer`. После проверки удалите правило командой `sudo iptables -t nat -D PREROUTING "${origin_rule[@]}"` и остановите тестовый сервис.
+
 На измерительном клиенте подготовьте конфигурацию Xray из выделенного профиля и запустите закреплённую версию Xray с SOCKS на 127.0.0.1:1080. Если клиент работает в контейнере, укажите `--listen 0.0.0.0` и публикуйте SOCKS только на loopback хоста. Файл конфига создаётся с правами 0600.
 
 ```bash
