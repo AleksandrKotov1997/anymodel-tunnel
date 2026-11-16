@@ -22,7 +22,7 @@ type Transfers = ReturnType<typeof makeTransfers>;
 const modes: Mode[] = ["direct", "proxy"];
 const shortRequestInterval = 250;
 
-async function window(
+async function measureWindow(
   transfers: Transfers,
   mode: Mode,
   workers: number,
@@ -218,7 +218,7 @@ export async function runMain(args: string[]) {
             mode,
             workers,
           );
-          emit(await window(transfers, mode, workers, seconds, repeat));
+          emit(await measureWindow(transfers, mode, workers, seconds, repeat));
           await setTimeout(3000);
         }
       }

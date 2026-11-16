@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { isRecord, readNumber } from "../model/index.ts";
+import { benchmarkLevels, isRecord, readNumber } from "../model/index.ts";
 import type { TransferSample, WindowSample } from "../model/index.ts";
 
 function records(file: string): Record<string, unknown>[] {
@@ -17,13 +17,15 @@ function records(file: string): Record<string, unknown>[] {
 function isTransfer(value: unknown): value is TransferSample {
   return (
     isRecord(value) &&
-    ["bytes", "status", "exit", "ttfbMs", "totalMs"].every(
-      (key) => typeof value[key] === "number" && Number.isFinite(value[key]),
-    ) &&
+    ["bytes", "status", "exit", "ttfbMs", "totalMs"].every((key) => {
+      const number = value[key];
+      return typeof number === "number" && Number.isFinite(number) && number >= 0;
+    }) &&
     (value.failure === null ||
-      ["dns", "tcp", "socks", "tls", "request", "response"].includes(
-        String(value.failure),
-      ))
+      (typeof value.failure === "string" &&
+        ["dns", "tcp", "socks", "tls", "request", "response"].includes(
+          value.failure,
+        )))
   );
 }
 
@@ -44,15 +46,28 @@ function readWindow(data: Record<string, unknown>): WindowSample {
     throw Error("Invalid benchmark window");
   }
   const seconds = readNumber(data.seconds, "seconds");
-  if (seconds <= 0) throw Error("Benchmark duration must be positive");
+  const workers = readNumber(data.workers, "workers");
+  const repeat = readNumber(data.repeat, "repeat");
+  const startUtc = timestamp(data.startUtc);
+  const endUtc = timestamp(data.endUtc);
+  if (
+    seconds <= 0 ||
+    (workers !== 0 && !benchmarkLevels.includes(workers)) ||
+    !Number.isInteger(repeat) ||
+    repeat < 1 ||
+    repeat > 3 ||
+    Date.parse(endUtc) < Date.parse(startUtc)
+  ) {
+    throw Error("Invalid benchmark window metadata");
+  }
   return {
     kind: "window",
     mode: data.mode,
-    workers: readNumber(data.workers, "workers"),
-    repeat: readNumber(data.repeat, "repeat"),
+    workers,
+    repeat,
     seconds,
-    startUtc: timestamp(data.startUtc),
-    endUtc: timestamp(data.endUtc),
+    startUtc,
+    endUtc,
     bulk: data.bulk,
     short: data.short,
   };
@@ -149,6 +164,8 @@ export function resultsMain(args: string[]) {
   for (const window of windows) {
     const key = window.mode + ":" + window.workers;
     const group = groups.get(key) ?? [];
+    if (group.some((entry) => entry.repeat === window.repeat))
+      throw Error("Duplicate benchmark repeat for " + key);
     group.push(window);
     groups.set(key, group);
   }
