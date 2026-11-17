@@ -1,5 +1,5 @@
 import { randomBytes, createHash, randomUUID } from "node:crypto";
-import { readFileSync, writeSync } from "node:fs";
+import { closeSync, readFileSync, writeSync } from "node:fs";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import https from "node:https";
@@ -176,7 +176,7 @@ function handler(allow: BlockList, fieldCheck: FieldCheck | undefined) {
   };
 }
 
-export function originMain(args: string[]) {
+export async function originMain(args: string[]) {
   const { values } = parseArgs({
     args,
     options: {
@@ -208,19 +208,33 @@ export function originMain(args: string[]) {
   }
   if (!allow.length && !fieldCheck)
     throw Error("Supply --allow or configure the field check");
-  const handle = handler(peerList(allow), fieldCheck);
-  const server =
-    cert && key
-      ? https.createServer(
-          {
-            cert: readFileSync(cert),
-            key: readFileSync(key),
-            minVersion: "TLSv1.2",
-          },
-          handle,
-        )
-      : createServer(handle);
-  server.listen(port, bind, () =>
-    console.log("Origin listening on %s:%s", bind, port),
-  );
+  try {
+    const handle = handler(peerList(allow), fieldCheck);
+    const server =
+      cert && key
+        ? https.createServer(
+            {
+              cert: readFileSync(cert),
+              key: readFileSync(key),
+              minVersion: "TLSv1.2",
+            },
+            handle,
+          )
+        : createServer(handle);
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(port, bind, () => {
+        server.removeListener("error", reject);
+        resolve();
+      });
+    });
+    if (fieldCheck) {
+      const auditLog = fieldCheck.log;
+      server.once("close", () => closeSync(auditLog));
+    }
+    console.log("Origin listening on %s:%s", bind, port);
+  } catch (error) {
+    if (fieldCheck) closeSync(fieldCheck.log);
+    throw error;
+  }
 }
